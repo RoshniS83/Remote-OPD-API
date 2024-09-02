@@ -12,30 +12,128 @@ from Patient.serializers import PatientSerializer
 
 # Create your views here.
 class PatientAPI(ModelViewSet):
-          queryset = Patientopdform.objects.all()
-          serializer_class = PatientSerializer
+    queryset = Patientopdform.objects.all()
+    serializer_class = PatientSerializer
 
-          def create(self, request, *args, **kwargs):
-                    try:
-                              serializer = self.serializer_class(data=request.data)
-                              serializer.is_valid(raise_exception=True)
-                              serializer.save()
-
-                              api_response = {
-                                        'status': 'success',
+    def create(self, request, *args, **kwargs):
+        try:
+            serializer = self.serializer_class(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            api_response = {            'status': 'success',
                                         'code': status.HTTP_201_CREATED,
                                         'message': 'Patient OPD form added successfully',
                                         'new_form': serializer.data,
-                              }
-                              return Response(api_response)
-                    except Exception as e:
-                              error_message = 'Failed to add patient opd form: {}'.format(str(e))
-                              error_response = {
+                            }
+            return Response(api_response)
+        except Exception as e:
+            error_message = 'Failed to add patient opd form: {}'.format(str(e))
+            error_response = {
                                         'status': 'error',
                                         'code': status.HTTP_400_BAD_REQUEST,
                                         'message': error_message
                               }
-                              return Response(error_response)
+            return Response(error_response)
+
+    def retrieve (self, request, *args, **kwargs):
+        try:
+            instance=self.get_object()
+            serializer=self.serializer_class(instance)
+            api_response = { 'status' : 'success',
+                             'code': status.HTTP_200_OK,
+                             'patient': serializer.data }
+            return Response(api_response)
+        except Exception as e:
+            error_message = 'Failed to retrieve patient opd form: {}'.format(str(e))
+            error_response = {
+                'status':'error',
+                'code':status.HTTP_404_NOT_FOUND,
+                'message': error_message
+                }
+            return Response(error_response)
+
+    def update(self, request,*args, **kwargs):
+        try:
+            partial=kwargs.pop('partial',False)
+            instance = self.get_object()
+            serializer= self.serializer_class(instance, data= request.data, partial=partial)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+            api_response = {
+                'status':'success',
+                'code':status.HTTP_200_OK,
+                'message':'Patient OPD form updated successfully',
+                'updated_form' : serializer.data
+            }
+            return Response(api_response)
+        except Exception as e:
+            error_message = 'Failed to update patient opd form:{}'. format(str(e))
+            error_response ={
+                'status':'error',
+                'code':status.HTTP_400_BAD_REQUEST,
+                'message': error_message
+            }
+            return  Response(error_response)
+
+    def partial_update(self, request, *args, **kwargs):
+        try:
+            kwargs['partial'] = True
+            response= self.update(request, *args, **kwargs)
+            api_response = {
+                'status':'success',
+                'code':status.HTTP_200_OK,
+                'message':'Patient OPD form updated successfully',
+                'updated_form': response.data
+            }
+            return Response(api_response, status=status.HTTP_200_OK)
+        except Exception as e:
+            error_message =f'Failed to partially update patient opd form: {str(e)} '
+            error_response={
+                'status':'error',
+                'code':status.HTTP_400_BAD_REQUEST,
+                'message': error_message
+            }
+            return Response(error_response)
+
+    def destroy(self, request,*args, **kwargs):
+        try:
+            instance= self.get_object()
+            instance.delete()
+            api_response = {
+                'status':'success',
+                'code': status.HTTP_204_NO_CONTENT,
+                'message':'Patient OPD form deleted successfully'
+            }
+            return Response(api_response)
+        except Exception as e:
+            error_message= 'Failed to delete patient opd form {}'. format(str(e))
+            error_response= {
+                'status':'error',
+                'code':status.HTTP_400_BAD_REQUEST,
+                'message':error_message
+            }
+            return Response(error_response)
+
+    def list(self, request, *args, **kwargs):
+        try:
+            queryset=self.get_queryset()
+            serializer = self.serializer_class(queryset, many=True)
+            api_response ={
+                'status':'success',
+                'code':'status.HTTP_200_OK',
+                'patients': serializer.data
+            }
+            return Response(api_response)
+        except Exception as e:
+            error_message= f'Failed to retrieve patient opd forms :{str(e)}'
+            error_response = {
+                'status':'error',
+                'code':status.HTTP_400_BAD_REQUEST,
+                'message':error_message
+            }
+            return Response(error_response)
+
 
 class ExcelReport(APIView):
           def get(self, request):

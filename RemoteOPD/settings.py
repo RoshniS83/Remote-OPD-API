@@ -40,6 +40,10 @@ INSTALLED_APPS = [
           'corsheaders',
           'Patient',
           'User',
+          'disease',
+          'villages',
+          'camps',
+          'medicines',
 ]
 
 CORS_ORIGIN_ALLOW_ALL = True
@@ -81,9 +85,9 @@ WSGI_APPLICATION = 'RemoteOPD.wsgi.application'
 DATABASES = {
           'default': {
                     'ENGINE': 'django.db.backends.mysql',
-                    'NAME': 'mobileopd',
+                    'NAME': 'remoteopd',
                     'USER': 'root',
-                    'PASSWORD': '1234',
+                    'PASSWORD': 'Roshni',
                     'HOST': 'localhost',
                     'PORT': '3306',
           }

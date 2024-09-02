@@ -4,5 +4,10 @@ from Patient.views import PatientAPI, ExcelReport
 
 urlpatterns = [
           path('addopdform/', PatientAPI.as_view({'post': 'create'})),
+          path('opdforms/', PatientAPI.as_view({'get': 'list'})),
+          path('opdform/<int:pk>/', PatientAPI.as_view({'get': 'retrieve'})),
+          path('opdform/<int:pk>/update/', PatientAPI.as_view({'put': 'update'})),
+          path('opdform/<int:pk>/partial-update/', PatientAPI.as_view({'patch': 'partial_update'})),
+          path('opdform/<int:pk>/delete/', PatientAPI.as_view({'delete': 'destroy'})),
           path('excelreport/', ExcelReport.as_view()),
 ]
