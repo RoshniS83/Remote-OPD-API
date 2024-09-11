@@ -41,7 +41,7 @@ class CampsAPI(ModelViewSet):
             instance= self.get_object()
             serializer = self.get_serializer(instance)
             formatted_Camps = {
-                'id':serializer.data['id'],
+                'id': serializer.data['id'],
                 'name': serializer.data['name']
             }
             api_response = {

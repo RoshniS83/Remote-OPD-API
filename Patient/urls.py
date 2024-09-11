@@ -1,6 +1,6 @@
 from django.urls import path
 
-from Patient.views import PatientAPI, ExcelReport
+from Patient.views import PatientAPI, ExcelReport, WeeklyReport
 
 urlpatterns = [
           path('addopdform/', PatientAPI.as_view({'post': 'create'})),
@@ -10,4 +10,6 @@ urlpatterns = [
           path('opdform/<int:pk>/partial-update/', PatientAPI.as_view({'patch': 'partial_update'})),
           path('opdform/<int:pk>/delete/', PatientAPI.as_view({'delete': 'destroy'})),
           path('excelreport/', ExcelReport.as_view()),
+          # path('weeksexcelsheet/', WeeksExcelSheet.as_view()),
+          path('weeklyreport/', WeeklyReport.as_view())
 ]
