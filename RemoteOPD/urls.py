@@ -22,7 +22,6 @@ from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
 from rest_framework import permissions
 
-
 schema_view = get_schema_view(
           openapi.Info(
                     title='Remote OPD API',
@@ -37,15 +36,15 @@ urlpatterns = [
           path('admin/', admin.site.urls),
           path('api/patient/', include('Patient.urls')),
           path('api/user/', include('User.urls')),
-          path('api/disease/',include('disease.urls')),
+          path('api/disease/', include('disease.urls')),
           path('api/villages/', include('villages.urls')),
           path('api/medicines/', include('medicines.urls')),
           path('api/camps/', include('camps.urls')),
           path('api/hbcamp/', include('hbcamp.urls')),
           path('api/eyecamp/', include('eyecamp.urls')),
+          path('api/client/', include('Client.urls')),
           path('', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
 ]
 
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-
+          urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
