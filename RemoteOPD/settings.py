@@ -44,6 +44,9 @@ INSTALLED_APPS = [
           'villages',
           'camps',
           'medicines',
+           'hbcamp',
+           'eyecamp',
+
 ]
 
 CORS_ORIGIN_ALLOW_ALL = True

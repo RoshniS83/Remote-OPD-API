@@ -61,9 +61,11 @@ from django.db import models
 class Patientopdform(models.Model):
     srNo = models.AutoField(db_column='srNo', primary_key=True)  # Field name made lowercase.
     patientName = models.CharField(db_column='patientName', max_length=100, blank=True, null=True)  # Field name made lowercase.
-    date = models.CharField(max_length=100, blank=True, null=True)
+    date = models.DateField()
+    year = models.IntegerField()
+    village = models.CharField(max_length=255, blank=True, null=True)
     villageName = models.CharField(db_column='villageName', max_length=100, blank=True, null=True)  # Field name made lowercase.
-    camp_name = models.TextField(blank=True, null=True)
+
     category = models.CharField(max_length=20, blank=True, null=True)
     gender = models.CharField(max_length=20, blank=True, null=True)
     age = models.IntegerField(blank=True, null=True)

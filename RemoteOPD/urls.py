@@ -41,6 +41,8 @@ urlpatterns = [
           path('api/villages/', include('villages.urls')),
           path('api/medicines/', include('medicines.urls')),
           path('api/camps/', include('camps.urls')),
+          path('api/hbcamp/', include('hbcamp.urls')),
+          path('api/eyecamp/', include('eyecamp.urls')),
           path('', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
 ]
 

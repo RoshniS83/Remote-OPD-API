@@ -16,7 +16,8 @@ from datetime import datetime
 import os
 from django.conf import settings
 from django.http import FileResponse
-from openpyxl.styles import Border, Side
+from openpyxl.styles import Border, Side, Font, Alignment, PatternFill
+
 # Create your views here.
 class PatientAPI(ModelViewSet):
     queryset = Patientopdform.objects.all()
@@ -151,6 +152,7 @@ class ExcelReport(APIView):
                               'srNo': 'Sr.No.',
                               'patientName': 'Patient Name',
                               'date': 'Date',
+                               'village' : 'Village',
                               'villageName': 'Village Name',
                               'category': 'N/F/SC/R',
                               'gender': 'Gender',
@@ -463,3 +465,466 @@ class WeeklyReport(APIView):
         # Return the Excel file as a FileResponse
         response = FileResponse(output, as_attachment=True, filename='WeeklyReport.xlsx')
         return response
+
+class MonthlyWeeklyReport(APIView):
+    def get(self, request):
+        month= request.query_params.get('month')
+        if not month:
+            return Response({"error" : "Month is required"}, status=400)
+
+        try:
+            month_datetime=pd.to_datetime(f'01-{month}', format='%d-%b-%Y')
+        except ValueError:
+            return Response({"error":"Invalid month format. Use 'MMM-YYYY' format, e.g. 'Jan-2024'"}, status=400)
+
+        data= Patientopdform.objects.all().values()
+        df = pd.DataFrame(data)
+        if df.empty:
+            return Response({"error": f"No data available for the month:{month}"}, status=400)
+        df['date']=pd.to_datetime(df['date'], format='%d-%b-%y')
+        # Filter by month and year
+        df = df[(df['date'].dt.month == month_datetime.month) & (df['date'].dt.year == month_datetime.year)]
+
+        df['Count']=1
+
+        # Initialize Excel writer for output
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        # Step 2: Get unique values for 'week'
+            weeks = df['week'].unique()
+            for week in weeks:
+                # Filter data for the current week
+                week_data = df[df['week'] == week]
+                week_data = week_data.sort_values(by='day')
+                # Check if there's data for the week
+                if not week_data.empty:
+                    actual_days = week_data['day'].unique()
+                    # Create pivot table for the current week
+                    pivot_table = week_data.pivot_table(
+                        index=['diagnosis'],
+                        columns=['day', 'villageName', 'gender'],
+                        values='Count',
+                        aggfunc='sum',
+                        fill_value=0
+                    )
+
+                    # Add a 'Grand Total' column by summing across rows
+                    pivot_table['Grand Total For M/F'] = pivot_table.sum(axis=1)
+
+                    # Reset index
+                    pivot_table.reset_index(inplace=True)
+
+                    # Create dynamic multi-index for columns
+                    week_days = week_data[['day', 'date']].drop_duplicates().sort_values(by='day')
+                    day_date_map = dict(zip(week_days['day'], week_days['date'].dt.strftime('%Y-%m-%d')))
+
+                    # Generate dynamic multi-index tuples
+                    dynamic_columns = []
+                    for (day, village, gender) in pivot_table.columns[1:-1]:
+                        if day in actual_days:
+                            date = day_date_map.get(day, '')
+                            dynamic_columns.append((day, date, village, gender))
+
+                    # Add 'Grand Total For M/F' at the end
+                    dynamic_columns.append(('Grand Total For M/F', '', '', ''))
+                    dynamic_columns = sorted(dynamic_columns,
+                                             key=lambda x: pd.to_datetime(x[1]) if x[1] != '' else pd.NaT)
+                    dynamic_columns = [('Diagnosis', '', '', '')] + dynamic_columns
+
+                    # Assign the multi-index to the pivot table columns
+                    pivot_table.columns = pd.MultiIndex.from_tuples(dynamic_columns,
+                                                                    names=['Day', 'Date', 'Village', 'Gender'])
+
+                    # Write the pivot table to a new sheet
+                    pivot_table.to_excel(writer, sheet_name=f'Week {week}', index=True)
+                    sheet_added = True  # Mark that a valid sheet is added
+
+                    # Apply borders to the entire sheet
+                    workbook = writer.book
+                    worksheet = workbook[f'Week {week}']
+
+                    thin_border = Border(
+                        left=Side(style='thin'),
+                        right=Side(style='thin'),
+                        top=Side(style='thin'),
+                        bottom=Side(style='thin')
+                    )
+
+                    # Loop through all cells and apply border
+                    for row in worksheet.iter_rows():
+                        for cell in row:
+                            cell.border = thin_border
+
+        # Set the pointer to the beginning of the output stream
+        output.seek(0)
+
+        # Return the Excel file as a FileResponse
+        response = FileResponse(output, as_attachment=True, filename=f'Monthly-Week-Wise-Report_{month}.xlsx')
+        return response
+
+class VillageWiseGenderReport(APIView):
+    def get(self, request):
+        year = request.query_params.get('year')
+        month = request.query_params.get('month')
+        village = request.query_params.get('village')
+        header_text = f"{village} Village Wise Gender Wise Report for Month {month}-{year}"
+        # Ensure that year, month and village are provided
+        if not year:
+            return Response({"error": "Year is required"}, status=400)
+        if not month:
+            return Response({"error": "Month is required"}, status=400)
+        if not village:
+            return Response({"error": "Village is required"}, status=400)
+
+        # Fetch data from the database, filtered by village, month, and year
+        data = Patientopdform.objects.filter(year=year, month=month, village=village).values('villageName', 'gender')
+
+
+        if not data:
+            return Response({"error": f"No data available for the month: {month}"}, status=400)
+
+        # Create a DataFrame from the filtered data
+        df = pd.DataFrame(data)
+
+        # Create pivot table for village-wise gender counts
+        pivot_table = df.pivot_table(
+            index='villageName',
+            columns='gender',
+            aggfunc='size',  # Count occurrences for each gender
+            fill_value=0  # Replace NaN with 0 for missing genders
+        )
+
+        # Add a 'Total' column for the sum of all genders
+        pivot_table['Total'] = pivot_table.sum(axis=1)
+
+        # Ensure the table includes columns for 'Male', 'Female', and 'Other' even if missing in the data
+        for col in ['Male', 'Female', 'Other']:
+            if col not in pivot_table.columns:
+                pivot_table[col] = 0
+
+        # Reorder columns to match the required report structure
+        pivot_table = pivot_table[['Male', 'Female', 'Other', 'Total']]
+
+        # Initialize Excel writer for output
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # Write the village-wise gender report to an Excel sheet
+            pivot_table.to_excel(writer, sheet_name=f'VillageWiseReport_{month}', index=True)
+
+            # Apply borders to the entire sheet
+            workbook = writer.book
+            worksheet = workbook[f'VillageWiseReport_{month}']
+            # worksheet["A1"] = header_text
+            # worksheet["A1"].font = Font(bold=True , size=16)
+
+            thin_border = Border(
+                left=Side(style='thin'),
+                right=Side(style='thin'),
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
+
+            # Loop through all cells and apply border
+            for row in worksheet.iter_rows():
+                for cell in row:
+                    cell.border = thin_border
+
+        # Set the pointer to the beginning of the output stream
+        output.seek(0)
+
+        # Return the Excel file as a FileResponse
+        response = FileResponse(output, as_attachment=True, filename=f'VillageWiseGenderReport_{month}.xlsx')
+        return response
+
+
+class VillageWiseAgeGroupReport(APIView):
+    def get(self, request):
+        year = request.query_params.get('year')
+        month = request.query_params.get('month')
+        village = request.query_params.get('village')
+
+        # Ensure that year, month and village are provided
+        if not year:
+            return Response({"error": "Year is required"}, status=400)
+        if not month:
+            return Response({"error": "Month is required"}, status=400)
+        if not village:
+            return Response({"error": "Village is required"}, status=400)
+
+        # Fetch data from the database, filtered by village, month, and year
+        data = Patientopdform.objects.filter(year=year,month=month,village=village).values('villageName', 'ageGroup', 'date')
+
+        # Convert the data to a pandas DataFrame
+        df = pd.DataFrame(data)
+
+        # Check if DataFrame is empty (i.e., no data available)
+        if df.empty:
+            return Response({"error": f"No data available for the month: {month} in village: {village}"}, status=400)
+
+        # Create pivot table for village-wise age group counts
+        pivot_table = df.pivot_table(
+            index='villageName',
+            columns='ageGroup',
+            aggfunc='size',  # Count occurrences for each age group
+            fill_value=0  # Replace NaN with 0 for missing age groups
+        )
+
+        # Add a 'Total' column for the sum of all age groups
+        pivot_table['Total'] = pivot_table.sum(axis=1)
+
+        # Dynamically get the distinct age groups from the data
+        age_labels = df['ageGroup'].unique().tolist()
+
+        # Ensure the table includes all age groups even if missing in the data
+        for col in age_labels:
+            if col not in pivot_table.columns:
+                pivot_table[col] = 0
+
+        # Reorder columns to match the required report structure
+        pivot_table = pivot_table[age_labels + ['Total']]
+
+        # Initialize Excel writer for output
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # Write the village-wise age group report to an Excel sheet
+            pivot_table.to_excel(writer, sheet_name=f'VillageWiseAgeGroup_{month}', index=True)
+
+            # Apply borders to the entire sheet
+            workbook = writer.book
+            worksheet = workbook[f'VillageWiseAgeGroup_{month}']
+
+            thin_border = Border(
+                left=Side(style='thin'),
+                right=Side(style='thin'),
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
+
+            # Loop through all cells and apply border
+            for row in worksheet.iter_rows():
+                for cell in row:
+                    cell.border = thin_border
+
+        # Set the pointer to the beginning of the output stream
+        output.seek(0)
+
+        # Return the Excel file as a FileResponse
+        response = FileResponse(output, as_attachment=True, filename=f'VillageWiseAgeGroupReport_{month}.xlsx')
+        return response
+
+
+
+class MonthlySummaryReport(APIView):
+    def get(self, request):
+        year = request.query_params.get('year')
+        month = request.query_params.get('month')
+        village = request.query_params.get('village')
+        if not year:
+            return Response({"error":"Year is required"}, status=400)
+        if not month:
+            return Response({"error": "Month is required"}, status=400)
+        if not village:
+            return Response({"error":"Village is required"}, status=400)
+            # Fetch data from the database (filtered by year, month, and village)
+        data = Patientopdform.objects.filter(
+                village=village,
+                year=year,
+                month=month
+            ).values()
+
+        df = pd.DataFrame(data)
+        if df.empty:
+            return Response({"error": f"No data available for Year: {year}, Month: {month}, Village: {village}"},
+                                status=400)
+
+        df['Count'] = 1
+            # Generate summary report
+        output = io.BytesIO()
+
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                # Step 1: Get unique village names dynamically
+            village_names = df['villageName'].unique()
+
+                # Step 2: Create a pivot table summarizing data by disease and village
+            pivot_table = df.pivot_table(
+                    index='diagnosis',
+                    columns='villageName',
+                    values='Count',
+                    aggfunc='sum',
+                    fill_value=0
+                )
+
+                # Step 3: Add 'Sr No' column at the beginning
+            pivot_table.reset_index(inplace=True)
+            pivot_table.insert(0, 'Sr No', range(1, len(pivot_table) + 1))
+            pivot_table['Total'] = pivot_table[village_names].sum(axis=1)
+
+                # Step 4: Add a 'Total' row (village-wise totals, vertical sum)
+            total_row = pivot_table[village_names].sum(axis=0).to_frame().T
+            total_row['diagnosis'] = 'Total'
+            total_row['Sr No'] = ''  # No Sr No for total row
+            total_row['Total'] = total_row[village_names].sum(axis=1)
+
+                # Append the 'Total' row to the pivot table
+            pivot_table = pd.concat([pivot_table, total_row], ignore_index=True)
+
+                # Step 5: Write the pivot table to Excel
+            pivot_table.to_excel(writer, sheet_name=f'Monthly Summary {month}-{year}', index=False)
+                # Apply borders to the entire sheet
+            workbook = writer.book
+            worksheet = workbook[f'Monthly Summary {month}-{year}']
+                # Add header "Summary Village Wise Disease Wise Count"
+            worksheet.insert_rows(1)
+            worksheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(pivot_table.columns))
+            header_cell = worksheet.cell(row=1, column=1)
+            header_cell.value = "Summary Village Wise Disease Wise Count"
+            header_cell.font = Font(size=14, bold=True)
+            header_cell.alignment = Alignment(horizontal='center')
+            thin_border = Border(
+                    left=Side(style='thin'),
+                    right=Side(style='thin'),
+                    top=Side(style='thin'),
+                    bottom=Side(style='thin')
+                )
+
+            for row in worksheet.iter_rows():
+                for cell in row:
+                    cell.border = thin_border
+                # Step 6: Add 'Total' row at the bottom
+            total_row = worksheet.max_row
+
+            for col_idx in range(3, len(village_names) + 3):
+                # Sum village-wise totals
+                cell_value = f"=SUM({worksheet.cell(row=3, column=col_idx).coordinate}:{worksheet.cell(row=total_row - 1, column=col_idx).coordinate})"
+                worksheet.cell(row=total_row, column=col_idx, value=cell_value)
+
+            grand_total = f"=SUM({worksheet.cell(row=3, column=len(pivot_table.columns)).coordinate}:{worksheet.cell(row=total_row - 1, column=len(pivot_table.columns)).coordinate})"
+            # Sum the 'Total' column
+            worksheet.cell(row=total_row, column=len(pivot_table.columns),value=grand_total)
+                               # value=f"=SUM({worksheet.cell(row=3, column=len(pivot_table.columns)).coordinate}:{worksheet.cell(row=total_row - 1, column=len(pivot_table.columns)).coordinate})")
+
+            font_style = Font (bold=True)
+            # Step 7: Add 'Percentage' column (for each disease)
+            worksheet.cell(row=2, column=len(pivot_table.columns) + 1, value="Percentage").font = font_style
+            grand_total_cell = worksheet.cell(row=total_row, column=len(pivot_table.columns)).coordinate
+
+            for row_idx in range(3, total_row):
+                total_value_cell = worksheet.cell(row=row_idx, column=len(pivot_table.columns)).coordinate
+                percentage_formula = f"=ROUND(({total_value_cell}/{grand_total_cell})*100, 0)"
+                cell=worksheet.cell(row=row_idx, column=len(pivot_table.columns) + 1, value=percentage_formula)
+                cell.border=thin_border
+                # cell.font=font_style
+                # Apply border to 'Percentage' column as well
+
+            for row in range(2, total_row):
+                cell = worksheet.cell(row=row, column=len(pivot_table.columns) + 1)
+                cell.border = thin_border
+
+            # Set the pointer to the beginning of the output stream
+        output.seek(0)
+
+            # Return the Excel file as a FileResponse
+        response = FileResponse(output, as_attachment=True, filename=f'Monthly-Summary-Report_{month}-{year}.xlsx')
+        return response
+
+class SummaryDiseaseWiseWeeklyReport(APIView):
+    def get(self, request):
+        year = request.query_params.get('year')
+        month = request.query_params.get('month')
+        village = request.query_params.get('village')
+
+        if not year:
+            return Response({"error": "Year is required"}, status=400)
+        if not month:
+            return Response({"error": "Month is required"}, status=400)
+        if not village:
+            return Response({"error": "Village is required"}, status=400)
+
+        # Fetch data from the database (filtered by year, month, and village)
+        data = Patientopdform.objects.filter(
+            village=village,
+            year=year,
+            month=month
+        ).values()
+
+        df = pd.DataFrame(data)
+        if df.empty:
+            return Response({"error": f"No data available for Year: {year}, Month: {month}, Village: {village}"},
+                            status=400)
+
+        df['Count'] = 1
+
+        # Pivot table for weekly data, disease-wise and gender-wise
+        pivot_table = df.pivot_table(
+            index='diagnosis',
+            columns=['week', 'gender'],
+            values='Count',
+            aggfunc='sum',
+            fill_value=0
+        )
+
+        # Add 'Sr No' column at the beginning
+        pivot_table.reset_index(inplace=True)
+        pivot_table.insert(0, 'Sr No', range(1, len(pivot_table) + 1))
+
+        # Calculate Male/Female totals for each diagnosis
+        male_columns = [col for col in pivot_table.columns if 'Male' in col]
+        female_columns = [col for col in pivot_table.columns if 'Female' in col]
+
+        pivot_table['Total Male'] = pivot_table[male_columns].sum(axis=1)
+        pivot_table['Total Female'] = pivot_table[female_columns].sum(axis=1)
+        pivot_table['Grand Total'] = pivot_table['Total Male'] + pivot_table['Total Female']
+
+        # Total counts for all weeks combined (vertical sum)
+        total_row = pivot_table[male_columns + female_columns].sum().to_frame().T
+        total_row['diagnosis'] = 'Total'
+        total_row['Sr No'] = ''
+        total_row['Total Male'] = total_row[male_columns].sum(axis=1)
+        total_row['Total Female'] = total_row[female_columns].sum(axis=1)
+        total_row['Grand Total'] = total_row['Total Male'] + total_row['Total Female']
+
+        # Append total row to pivot table
+        pivot_table = pd.concat([pivot_table, total_row], ignore_index=True)
+        # Calculate percentage based on the 'Grand Total'
+        grand_total_sum = pivot_table['Grand Total'].iloc[:-1].sum()  # Exclude the total row itself
+        print("GRand Total sum",grand_total_sum)
+        pivot_table['Percentage'] = (pivot_table['Grand Total'] / grand_total_sum * 100).round(2)
+
+        # Writing to Excel
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # Write pivot table to Excel sheet
+            pivot_table.to_excel(writer, sheet_name=f'Summary-DiseaseWise-WeekWise-PatientCount-Report-{month}-{year}', index=True)
+
+            # Get the Excel workbook and worksheet objects
+            workbook = writer.book
+            worksheet = workbook[f'Weekly Summary {month}-{year}']
+
+            # Apply formatting: borders, font size, alignment, etc.
+            thin_border = Border(
+                left=Side(style='thin'),
+                right=Side(style='thin'),
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
+
+            # Apply borders to all cells
+            for row in worksheet.iter_rows():
+                for cell in row:
+                    cell.border = thin_border
+
+            # Add "Grand Total" row sum
+            total_row_idx = worksheet.max_row
+            for col_idx in range(3, len(pivot_table.columns) -1):
+                # Sum formula for Grand Total columns
+                sum_formula = f"=SUM({worksheet.cell(row=3, column=col_idx).coordinate}:{worksheet.cell(row=total_row_idx-1, column=col_idx).coordinate})"
+                worksheet.cell(row=total_row_idx, column=col_idx, value=sum_formula)
+                # Format percentage column
+            percentage_column_idx = len(pivot_table.columns)
+            for row_idx in range(2, total_row_idx):  # Start from row 2 (excluding header)
+                worksheet.cell(row=row_idx, column=percentage_column_idx)
+
+        output.seek(0)
+        response = FileResponse(output, as_attachment=True, filename=f'Summary-DiseaseWise-WeekWise-PatientCount-Report-{month}-{year}.xlsx')
+        return response
+
