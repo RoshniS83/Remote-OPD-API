@@ -2,7 +2,7 @@ from django.db import models
 
 # Create your models here.
 class EyeCamp(models.Model):
-          srno = models.AutoField(db_column='SrNo', primary_key=True)  # Field name made lowercase.
+          SrNo = models.AutoField(db_column='SrNo', primary_key=True)  # Field name made lowercase.
           village = models.CharField(max_length=250, blank=True, null=True)
           date = models.DateField(blank=True, null=True)
           year = models.IntegerField(blank=True, null=True)

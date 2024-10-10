@@ -1,5 +1,5 @@
 from django.urls import path
-from eyecamp.views import EyeCampAPI, EyeCampExcelSheet, EyeCampReport
+from eyecamp.views import EyeCampAPI, EyeCampExcelSheet, EyeCampMonthlyReport
 
 urlpatterns= [
     path("addeyecamp/", EyeCampAPI.as_view({'post':'create'})),
@@ -9,5 +9,5 @@ urlpatterns= [
     path("eyecamp/<int:pk>/partial-update/", EyeCampAPI.as_view({'patch':'partial_update'})),
     path("eyecamp/<int:pk>/delete/", EyeCampAPI.as_view({'delete': 'destroy'})),
     path('eyecampExcelsheet/', EyeCampExcelSheet.as_view()),
-    path('eyecampReport/', EyeCampReport.as_view())
+    path('eyecampMonthlyReport/', EyeCampMonthlyReport.as_view())
 ]

@@ -1,21 +1,21 @@
 from datetime import datetime
 import datetime
 import openpyxl
-from django.db.models import Count
+import pandas as pd
 from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
-from .models import EyeCamp
-from .serializers import EyeCampSerializer
+from .models import ADCamp
+from .serializers import ADCampSerializer
 from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
-import pandas as pd
+from django.db.models import Count
 
-class EyeCampAPI(ModelViewSet):
-    queryset = EyeCamp.objects.all()
-    serializer_class = EyeCampSerializer
+class ADCampAPI(ModelViewSet):
+    queryset = ADCamp.objects.all()
+    serializer_class = ADCampSerializer
 
     def create(self, request, *args, **kwargs):
         try:
@@ -25,12 +25,12 @@ class EyeCampAPI(ModelViewSet):
             api_response = {
                 'status': 'success',
                 'code': status.HTTP_201_CREATED,
-                'message': 'EyeCamp record added successfully',
+                'message': 'ADCamp record added successfully',
                 'new_record': serializer.data,
             }
             return Response(api_response)
         except Exception as e:
-            error_message = 'Failed to add EyeCamp record: {}'.format(str(e))
+            error_message = 'Failed to add ADCamp record: {}'.format(str(e))
             error_response = {
                 'status': 'error',
                 'code': status.HTTP_400_BAD_REQUEST,
@@ -45,11 +45,11 @@ class EyeCampAPI(ModelViewSet):
             api_response = {
                 'status': 'success',
                 'code': status.HTTP_200_OK,
-                'Eyecamp': serializer.data
+                'adcamp': serializer.data
             }
             return Response(api_response)
         except Exception as e:
-            error_message = 'Failed to retrieve EyeCamp record: {}'.format(str(e))
+            error_message = 'Failed to retrieve ADCamp record: {}'.format(str(e))
             error_response = {
                 'status': 'error',
                 'code': status.HTTP_404_NOT_FOUND,
@@ -68,12 +68,12 @@ class EyeCampAPI(ModelViewSet):
             api_response = {
                 'status': 'success',
                 'code': status.HTTP_200_OK,
-                'message': 'EyeCamp record updated successfully',
+                'message': 'ADCamp record updated successfully',
                 'updated_record': serializer.data
             }
             return Response(api_response)
         except Exception as e:
-            error_message = 'Failed to update EyeCamp record: {}'.format(str(e))
+            error_message = 'Failed to update ADCamp record: {}'.format(str(e))
             error_response = {
                 'status': 'error',
                 'code': status.HTTP_400_BAD_REQUEST,
@@ -88,12 +88,12 @@ class EyeCampAPI(ModelViewSet):
             api_response = {
                 'status': 'success',
                 'code': status.HTTP_200_OK,
-                'message': 'EyeCamp record updated successfully',
+                'message': 'ADCamp record updated successfully',
                 'updated_record': response.data
             }
             return Response(api_response, status=status.HTTP_200_OK)
         except Exception as e:
-            error_message = 'Failed to partially update EyeCamp record: {}'.format(str(e))
+            error_message = 'Failed to partially update ADCamp record: {}'.format(str(e))
             error_response = {
                 'status': 'error',
                 'code': status.HTTP_400_BAD_REQUEST,
@@ -108,11 +108,11 @@ class EyeCampAPI(ModelViewSet):
             api_response = {
                 'status': 'success',
                 'code': status.HTTP_204_NO_CONTENT,
-                'message': 'EyeCamp record deleted successfully'
+                'message': 'ADCamp record deleted successfully'
             }
             return Response(api_response)
         except Exception as e:
-            error_message = 'Failed to delete EyeCamp record: {}'.format(str(e))
+            error_message = 'Failed to delete ADCamp record: {}'.format(str(e))
             error_response = {
                 'status': 'error',
                 'code': status.HTTP_400_BAD_REQUEST,
@@ -127,11 +127,11 @@ class EyeCampAPI(ModelViewSet):
             api_response = {
                 'status': 'success',
                 'code': status.HTTP_200_OK,
-                'Eyecamps': serializer.data
+                'adcamps': serializer.data
             }
             return Response(api_response)
         except Exception as e:
-            error_message = 'Failed to retrieve EyeCamp records: {}'.format(str(e))
+            error_message = 'Failed to retrieve ADCamp records: {}'.format(str(e))
             error_response = {
                 'status': 'error',
                 'code': status.HTTP_400_BAD_REQUEST,
@@ -140,31 +140,32 @@ class EyeCampAPI(ModelViewSet):
             return Response(error_response)
 
 
-class EyeCampExcelSheet(APIView):
+class ADCampExcelSheet(APIView):
     def get(self, request):
-        data = EyeCamp.objects.all()
+        data = ADCamp.objects.all()
         headers_mapping = {
-            'SrNo':' Sr No',
-            'village': 'Main Village',
+            'SrNo' :' Sr No',
+            'village' : 'Main Village',
             'date': 'Date',
             'year': 'Year',
             'month': 'Month',
-            'name': 'Name',
-            'gender': 'Gender',
-            'contact': 'Contact',
-            'subvillage': 'Village Name',
-            'age': 'Age',
-            'code': 'Unique Code',
-            'desciption': 'Code Description',
-            'opinion': 'Opinion',
-            'client_name': 'Client Name'
-
+            'name' : 'Name',
+            'age' : 'Age',
+            'standard': 'Standard',
+            'weight': 'Weight',
+            'height': 'Height',
+            'villageName' : 'Village Name',
+            'HB' : 'HB',
+            'HBReadings' : 'HB Readings',
+            'BMI': 'BMI',
+            'BMIReadings':'BMI Readings',
+            'client_name' :'Client Name'
         }
         wb = openpyxl.Workbook()
         ws=wb.active
-        ws.merge_cells('A1:L1')
-        ws['A1'] = 'NCD- Village Level Eye Screening Camp'
-        ws['A1'].font = Font(bold=True, size=14)
+        ws.merge_cells('A1:P1')
+        ws['A1'] = 'Arogaya Dhansampadha Camp'
+        ws['A1'].font = Font(bold= True, size=14)
         ws['A1'].alignment = Alignment(horizontal='center')
 
         headers= list(headers_mapping.values())
@@ -188,31 +189,34 @@ class EyeCampExcelSheet(APIView):
 
         current_date = datetime.date.today().strftime('%Y-%m-%d')
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition'] = f'attachment; filename="Eye CAMP {current_date}.xlsx"'
+        response['Content-Disposition'] = f'attachment; filename="AD CAMP Records {current_date}.xlsx"'
         wb.save(response)
         return response
 
-class EyeCampMonthlyReport(APIView):
+
+class ADCampMonthlyReport(APIView):
     def get(self, request):
-        # Query data from the HBCamp model
-        # data = HBCamp.objects.values('subvillage', 'gender', 'HBReadings').annotate(count=Count('SrNo'))
+        # Query data from the ADCamp model
+        # data = ADCamp.objects.values('subvillage', 'gender', 'ADReadings').annotate(count=Count('SrNo'))
         # Get query parameters for filtering
         year = request.query_params.get('year')
         month = request.query_params.get('month')
         village = request.query_params.get('village')
         client_name = request.query_params.get('client_name')
+
         # Validate required parameters
-        if not client_name:
-            return Response({"error":"Client Name is required"}, status=400)
         if not year:
             return Response({"error": "Year is required"}, status=400)
         if not month:
             return Response({"error": "Month is required"}, status=400)
         if not village:
             return Response({"error": "Village is required"}, status=400)
+        if not client_name:
+            return Response({"error": "Client Name is required"}, status=400)
 
-            # Filter data from EyeCamp model based on the provided parameters
-        data = EyeCamp.objects.filter(client_name=client_name, village=village, year=year, month=month).values('subvillage', 'gender','code').annotate(count=Count('SrNo'))
+            # Filter data from ADCamp model based on the provided parameters
+        data = ADCamp.objects.filter(client_name=client_name, village=village, year=year, month=month).values('subvillage', 'gender',
+                                                                                     'ADReadings').annotate(count=Count('SrNo'))
 
         # Convert to pandas dataframe
         df = pd.DataFrame(list(data))
@@ -221,22 +225,23 @@ class EyeCampMonthlyReport(APIView):
         if df.empty:
             return Response({"error": f"No data available for year: {year}, Month: {month}, Village: {village}"},
                             status=400)
-
-            # Create a pivot table with 'subvillage' and 'gender' as index and 'HBReadings' as columns
+            # Create a pivot table with 'subvillage' and 'gender' as index and 'ADReadings' as columns
         pivot_table = pd.pivot_table(df,
                                      index=['subvillage', 'gender'],
-                                     columns='code',
+                                     columns='HBReadings',
                                      values='count',
                                      aggfunc='sum',
                                      fill_value=0)
-        pivot_table['Total'] = 0
+
         # Add Total column for each row
         pivot_table['Total'] = pivot_table.sum(axis=1)
+
         # Add Grand Total for each village by summing across genders
         grand_total = pivot_table.groupby('subvillage')['Total'].sum()
         pivot_table['Grand Total Village'] = pivot_table.index.get_level_values('subvillage').map(grand_total)
 
-        required_columns=['No Fit', 'Correction', 'Operation Done', 'Healthy', 'Impairment', 'Dryness', 'White Part', 'Total', 'Grand Total VillageWise']
+        # Reorder the columns to match the required order
+        required_columns = ['Mild Anemia', 'Moderate Anemia', 'Severe Anemia', 'Healthy', 'Total', 'Grand Total Village']
         for col in required_columns:
             if col not in pivot_table.columns:
                 pivot_table[col] = 0  # Add missing columns if necessary
@@ -246,16 +251,16 @@ class EyeCampMonthlyReport(APIView):
         # Convert pivot table to Excel
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = 'Eye Camp Report'
+        ws.title = 'AD Camp Report'
 
         # Title
-        ws.merge_cells('A1:L1')
-        ws['A1'] = f'Village Wise EYE Camp Report for {village}-{month}-{year}'
+        ws.merge_cells('A1:I1')
+        ws['A1'] = 'Village Wise AD Screening Report'
         ws['A1'].font = Font(bold=True, size=14)
         ws['A1'].alignment = Alignment(horizontal='center')
 
         # Headers
-        headers = ['Sr.No', 'Village Names', 'Gender'] + required_columns
+        headers = ['Sr. No', 'Village Names', 'Gender'] + required_columns
         ws.append(headers)
 
         # Bold the header row
@@ -265,7 +270,7 @@ class EyeCampMonthlyReport(APIView):
             # Add data to the Excel sheet with merged village names
         sr_no = 1
         current_row = 3
-        last_column_idx=12
+        last_column_idx=9
         for village, group_data in pivot_table.groupby(level=0):
             # Number of rows to merge (male and female rows)
             num_rows = len(group_data)
@@ -309,14 +314,13 @@ class EyeCampMonthlyReport(APIView):
                                  top=Side(style='thin'),
                                  bottom=Side(style='thin'))
 
-        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=12):
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=9):
             for cell in row:
                 cell.border = thin_border
 
             # Prepare the response to download the file
         current_date = datetime.date.today().strftime('%Y-%m-%d')
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition'] = f'attachment; filename="EYE_CAMP_Report_VillageWise-{current_date}.xlsx"'
+        response['Content-Disposition'] = f'attachment; filename="AD_CAMP_Report_{current_date}.xlsx"'
         wb.save(response)
         return response
-

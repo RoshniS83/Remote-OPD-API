@@ -198,6 +198,7 @@ class HBCampMonthlyReport(APIView):
         year = request.query_params.get('year')
         month = request.query_params.get('month')
         village = request.query_params.get('village')
+        client_name = request.query_params.get('client_name')
 
         # Validate required parameters
         if not year:
@@ -206,11 +207,12 @@ class HBCampMonthlyReport(APIView):
             return Response({"error": "Month is required"}, status=400)
         if not village:
             return Response({"error": "Village is required"}, status=400)
+        if not client_name:
+            return Response({"error": "Client Name is required"}, status=400)
 
             # Filter data from HBCamp model based on the provided parameters
-        data = HBCamp.objects.filter(village=village, year=year, month=month).values('subvillage', 'gender',
-                                                                                     'HBReadings').annotate(
-            count=Count('SrNo'))
+        data = HBCamp.objects.filter(client_name=client_name, village=village, year=year, month=month).values('subvillage', 'gender',
+                                                                                     'HBReadings').annotate(count=Count('SrNo'))
 
         # Convert to pandas dataframe
         df = pd.DataFrame(list(data))
@@ -219,10 +221,6 @@ class HBCampMonthlyReport(APIView):
         if df.empty:
             return Response({"error": f"No data available for year: {year}, Month: {month}, Village: {village}"},
                             status=400)
-
-
-
-
             # Create a pivot table with 'subvillage' and 'gender' as index and 'HBReadings' as columns
         pivot_table = pd.pivot_table(df,
                                      index=['subvillage', 'gender'],
@@ -239,7 +237,7 @@ class HBCampMonthlyReport(APIView):
         pivot_table['Grand Total Village'] = pivot_table.index.get_level_values('subvillage').map(grand_total)
 
         # Reorder the columns to match the required order
-        required_columns = ['Mild', 'Moderate', 'Severe', 'Healthy', 'Total', 'Grand Total Village']
+        required_columns = ['Mild Anemia', 'Moderate Anemia', 'Severe Anemia', 'Healthy', 'Total', 'Grand Total Village']
         for col in required_columns:
             if col not in pivot_table.columns:
                 pivot_table[col] = 0  # Add missing columns if necessary
