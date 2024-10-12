@@ -48,6 +48,7 @@ INSTALLED_APPS = [
           'hbcamp',
           'eyecamp',
           'Client',
+          'adcamp',
 
 ]
 

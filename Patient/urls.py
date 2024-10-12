@@ -2,7 +2,7 @@ from django.urls import path
 from Patient.views import PatientAPI, ExcelReport, WeeklyReport, VillageWiseGenderReport,VillageWiseAgeGroupReport
 from django.urls import path
 from Patient.views import PatientAPI, ExcelReport, WeeklyReport, VillageWiseGenderReport,VillageWiseAgeGroupReport
-from Patient.views import MonthlySummaryReport, SummaryDiseaseWiseWeeklyReport, PatientHistoryAPI
+from Patient.views import MonthlySummaryReport, SummaryDiseaseWiseWeeklyReport, PatientHistoryAPI,FilteredExcelReport,FilteredWeeklyReport
 urlpatterns = [
           path('addopdform/', PatientAPI.as_view({'post': 'create'})),
           path('opdforms_paginated/', PatientAPI.as_view({'get': 'list'})),
@@ -19,5 +19,7 @@ urlpatterns = [
           path('MonthlySummaryReport/', MonthlySummaryReport.as_view()),
           path('SummaryDiseaseWiseWeeklyReport/', SummaryDiseaseWiseWeeklyReport.as_view()),
           path('PatientHistory/', PatientHistoryAPI.as_view()),
+          path('FilteredExcelReport/', FilteredExcelReport.as_view()),
+          path('FilteredWeeklyReport/', FilteredWeeklyReport.as_view())
 ]
 

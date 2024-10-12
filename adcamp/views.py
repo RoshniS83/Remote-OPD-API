@@ -205,18 +205,11 @@ class ADCampMonthlyReport(APIView):
         client_name = request.query_params.get('client_name')
 
         # Validate required parameters
-        if not year:
-            return Response({"error": "Year is required"}, status=400)
-        if not month:
-            return Response({"error": "Month is required"}, status=400)
-        if not village:
-            return Response({"error": "Village is required"}, status=400)
-        if not client_name:
-            return Response({"error": "Client Name is required"}, status=400)
-
+        if not year or not month or not village or not client_name:
+            return Response({"error": "Year, Month, Village and Client Name are required"}, status=400)
             # Filter data from ADCamp model based on the provided parameters
         data = ADCamp.objects.filter(client_name=client_name, village=village, year=year, month=month).values('subvillage', 'gender',
-                                                                                     'ADReadings').annotate(count=Count('SrNo'))
+                                                                                     'HBReadings').annotate(count=Count('SrNo'))
 
         # Convert to pandas dataframe
         df = pd.DataFrame(list(data))
@@ -241,7 +234,7 @@ class ADCampMonthlyReport(APIView):
         pivot_table['Grand Total Village'] = pivot_table.index.get_level_values('subvillage').map(grand_total)
 
         # Reorder the columns to match the required order
-        required_columns = ['Mild Anemia', 'Moderate Anemia', 'Severe Anemia', 'Healthy', 'Total', 'Grand Total Village']
+        required_columns = ['Mild Anemia', 'Moderate Anemia', 'Severe Anemia', 'Healthy', 'Total', 'Grand Total']
         for col in required_columns:
             if col not in pivot_table.columns:
                 pivot_table[col] = 0  # Add missing columns if necessary
@@ -255,7 +248,7 @@ class ADCampMonthlyReport(APIView):
 
         # Title
         ws.merge_cells('A1:I1')
-        ws['A1'] = 'Village Wise AD Screening Report'
+        ws['A1'] = 'Village Wise Aarogya Dhansampada Camp Report'
         ws['A1'].font = Font(bold=True, size=14)
         ws['A1'].alignment = Alignment(horizontal='center')
 

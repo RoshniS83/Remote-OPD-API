@@ -378,6 +378,76 @@ class ExcelReport(APIView):
 		wb.save(response)
 		return response
 
+class FilteredExcelReport(APIView):
+	def get(self, request):
+
+		year = request.query_params.get('year')
+		month = request.query_params.get('month')
+		village = request.query_params.get('village')
+		client_name = request.query_params.get('client_name')
+		if not year or not month or not village or not client_name:
+			return Response({"error" : "Year, Month, Village and Client name are required"}, status=400)
+
+		data=Patientopdform.objects.filter(year=year, month=month, village=village , client_name=client_name)
+
+		# Mapping of attribute names to display names
+		headers_mapping = {
+			'srNo': 'Sr.No.',
+			'patientName': 'Patient Name',
+			'date': 'Date',
+			'village': 'Village',
+			'villageName': 'Village Name',
+			'category': 'N/F/SC/R',
+			'gender': 'Gender',
+			'age': 'Age',
+			'day': 'Day',
+			'month': 'Month',
+			'ageGroup': 'Age Group',
+			'week': 'Week',
+			'mobileNo': 'Mobile No.',
+			'signSymptoms': 'Sign and Symptoms',
+			'physicalExamination': 'Physical Examination and Finding',
+			'investigation': 'Investigation',
+			'diagnosis': 'Diagnosis',
+			'prescribedMedicine1': 'Prescribed medicine 1',
+			'prescribedMedicine2': 'Prescribed medicine 2',
+			'dosage': 'Dosage',
+			'treatmentRemark': 'Treatment Remark',
+			'client_name': 'Client Name'
+		}
+
+		# Initialize Excel workbook and sheet
+		wb = openpyxl.Workbook()
+		ws = wb.active
+
+		# Write headers
+		headers = list(headers_mapping.values())
+		ws.append(headers)
+
+		# Write data rows
+		for row in data:
+			row_data = [getattr(row, field) for field in headers_mapping.keys()]
+			ws.append(row_data)
+
+		# Get the current date
+
+		thin_border = Border(left=Side(style='thin'),
+		                     right=Side(style='thin'),
+		                     top=Side(style='thin'),
+		                     bottom=Side(style='thin'))
+
+		for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=24):
+			for cell in row:
+				cell.border = thin_border
+
+		# Create HttpResponse object with Excel content type
+		response = HttpResponse(
+			content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+		response['Content-Disposition'] = f'attachment; filename="OPD Monthly Patient Records of{village}-{month}-{year}.xlsx"'
+
+		# Save the Excel file to the HttpResponse
+		wb.save(response)
+		return response
 
 # This WeeksExcelSheet class is dividing the whole excelsheet data of all months from Apr to August into Weeks - Now we are commenting it for future use
 # class WeeksExcelSheet(APIView):
@@ -649,6 +719,106 @@ class WeeklyReport(APIView):
 		response = FileResponse(output, as_attachment=True, filename='WeeklyReport.xlsx')
 		return response
 
+class FilteredWeeklyReport(APIView):
+	def get(self, request):
+		# Sample data from your database
+		year = request.query_params.get('year')
+		month = request.query_params.get('month')
+		village = request.query_params.get('village')
+		client_name = request.query_params.get('client_name')
+		if not year or not month or not village or not client_name:
+			return Response({"error": "Year, Month, Village and Client name are required"}, status=400)
+
+		data = Patientopdform.objects.filter(year=year, month=month, village=village, client_name=client_name).values()
+		# Convert query data to DataFrame
+		df = pd.DataFrame(data)
+		# Check if DataFrame is empty
+		if df.empty:
+			return Response({"error": "No data available"}, status=400)
+
+		# Create a 'Count' column
+		df['Count'] = 1
+
+		# Initialize Excel writer for output
+		output = io.BytesIO()
+		with pd.ExcelWriter(output, engine='openpyxl') as writer:
+
+			weeks = df['week'].unique()
+			sheet_added = False  # Flag to check if at least one valid sheet is added
+
+			for week in weeks:
+				# Filter data for the current week
+				week_data = df[df['week'] == week]
+				week_data = week_data.sort_values(by='day')
+				# Check if there's data for the week
+				if not week_data.empty:
+					actual_days = week_data['day'].unique()
+					# Create pivot table for the current week
+					pivot_table = week_data.pivot_table(
+						index=['diagnosis'],
+						columns=['day', 'villageName', 'gender'],
+						values='Count',
+						aggfunc='sum',
+						fill_value=0
+					)
+
+					# Add a 'Grand Total' column by summing across rows
+					pivot_table['Grand Total For M/F'] = pivot_table.sum(axis=1)
+
+					# Reset index
+					pivot_table.reset_index(inplace=True)
+
+					# Create dynamic multi-index for columns
+					week_days = week_data[['day', 'date']].drop_duplicates().sort_values(
+						by='day')
+					day_date_map = dict(zip(week_days['day'], week_days['date']))
+
+					# Generate dynamic multi-index tuples
+					dynamic_columns = []
+					for (day, village, gender) in pivot_table.columns[1:-1]:
+						if day in actual_days:
+							date = day_date_map.get(day, '')
+							dynamic_columns.append(
+								(day, date, village, gender))
+
+					# Add 'Grand Total For M/F' at the end
+					dynamic_columns.append(('Grand Total For M/F', '', '', ''))
+					dynamic_columns = sorted(dynamic_columns,
+					                         key=lambda x: pd.to_datetime(x[1]) if x[
+						                                                               1] != '' else pd.NaT)
+					dynamic_columns = [('Diagnosis', '', '', '')] + dynamic_columns
+
+					# Assign the multi-index to the pivot table columns
+
+					pivot_table.columns = pd.MultiIndex.from_tuples(dynamic_columns,
+					                                                names=['Day', 'Date','Village','Gender'])
+
+					# Write the pivot table to a new sheet
+					pivot_table.to_excel(writer, sheet_name=f'Week {week}', index=True)
+					sheet_added = True  # Mark that a valid sheet is added
+					# Apply borders to the entire sheet
+					workbook = writer.book
+					worksheet = workbook[f'Week {week}']
+
+					thin_border = Border(
+						left=Side(style='thin'),
+						right=Side(style='thin'),
+						top=Side(style='thin'),
+						bottom=Side(style='thin')
+					)
+
+					# Loop through all cells and apply border
+					for row in worksheet.iter_rows():
+						for cell in row:
+							cell.border = thin_border
+
+		# Set the pointer to the beginning of the output stream
+		output.seek(0)
+
+		# Return the Excel file as a FileResponse
+		response = FileResponse(output, as_attachment=True, filename='WeeklyReport.xlsx')
+		return response
+
 
 # class MonthlyWeeklyReport(APIView):
 #           def get(self, request):
@@ -759,7 +929,7 @@ class VillageWiseGenderReport(APIView):
 		year = request.query_params.get('year')
 		month = request.query_params.get('month')
 		village = request.query_params.get('village')
-		client_name = request.query_params('client_name')
+		client_name = request.query_params.get('client_name')
 		header_text = f"{village} Village Wise Gender Wise Report for Month {month}-{year}"
 		# Ensure that year, month and village are provided
 		if not year:
@@ -1108,7 +1278,7 @@ class SummaryDiseaseWiseWeeklyReport(APIView):
 
 			# Get the Excel workbook and worksheet objects
 			workbook = writer.book
-			worksheet = workbook[f'Weekly Summary {month}-{year}']
+			worksheet = workbook[f'Summary-DiseaseWise-WeekWise-PatientCount-Report-{month}-{year}']
 
 			# Apply formatting: borders, font size, alignment, etc.
 			thin_border = Border(
