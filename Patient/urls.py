@@ -1,5 +1,4 @@
 from django.urls import path
-from Patient.views import PatientAPI, ExcelReport, WeeklyReport, VillageWiseGenderReport,VillageWiseAgeGroupReport
 from django.urls import path
 from Patient.views import PatientAPI, ExcelReport, WeeklyReport, VillageWiseGenderReport,VillageWiseAgeGroupReport
 from Patient.views import MonthlySummaryReport, SummaryDiseaseWiseWeeklyReport, PatientHistoryAPI,FilteredExcelReport,FilteredWeeklyReport
