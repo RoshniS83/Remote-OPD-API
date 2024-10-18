@@ -1189,3 +1189,172 @@ class PatientHistoryAPI(APIView):
 				"message": "An error occurred while retrieving the patient's history.",
 				"data": str(e)
 			}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# This WeeksExcelSheet class is dividing the whole excelsheet data of all months from Apr to August into Weeks - Now we are commenting it for future use
+# class WeeksExcelSheet(APIView):
+#     def get(self, request):
+#         # Query data from Patientopdform model
+#         data = Patientopdform.objects.all()  # Query data
+#
+#         # Mapping of attribute names to display names
+#         headers_mapping = {
+#             'srNo': 'Sr.No.',
+#             'patientName': 'Patient Name',
+#             'date': 'Date',
+#             'villageName': 'Village Name',
+#             'camp_name':'Camp Name',
+#             'category': 'N/F/SC/R',
+#             'gender': 'Gender',
+#             'age': 'Age',
+#             'day': 'Day',
+#             'month': 'Month',
+#             'ageGroup': 'Age Group',
+#             'week': 'Week',
+#             'mobileNo': 'Mobile No.',
+#             'signSymptoms': 'Sign and Symptoms',
+#             'physicalExamination': 'Physical Examination and Finding',
+#             'investigation': 'Investigation',
+#             'diagnosis': 'Diagnosis',
+#             'prescribedMedicine1': 'Prescribed medicine 1',
+#             'prescribedMedicine2': 'Prescribed medicine 2',
+#             'dosage': 'Dosage',
+#             'treatmentRemark': 'Treatment Remark',
+#         }
+#         media_path = settings.MEDIA_ROOT
+#         if not os.path.exists(media_path):
+#             os.makedirs(media_path)
+#         # Initialize Excel workbook
+#         wb = openpyxl.Workbook()
+#
+#         # Separate data for each week
+#         weeks = data.values_list('week', flat=True).distinct()
+#
+#         for week in weeks:
+#             ws = wb.create_sheet(title=f'Week {week}')
+#             # Write headers
+#             headers = list(headers_mapping.values())
+#             ws.append(headers)
+#
+#             # Filter data by week
+#             week_data = data.filter(week=week)
+#
+#             # Write data rows for that week
+#             for row in week_data:
+#                 row_data = [getattr(row, field) for field in headers_mapping.keys()]
+#                 ws.append(row_data)
+#
+#         # Remove the default sheet created by openpyxl (if empty)
+#         if 'Sheet' in wb.sheetnames:
+#             default_sheet = wb['Sheet']
+#             wb.remove(default_sheet)
+#
+#         # Get the current date
+#         current_date = datetime.today().strftime('%Y-%m-%d')
+#         file_path = os.path.join(media_path, f'Weeks_wise_report{current_date}.xlsx')
+#         wb.save(file_path)
+#         # Create HttpResponse object with Excel content type
+#         response = HttpResponse(
+#             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+#         )
+#         response['Content-Disposition'] = f'attachment; filename="Weeks_wise_report{current_date}.xlsx"'
+#
+#         # Save the Excel file to the HttpResponse
+#         response.write(f'File saved successfully: {file_path}')
+#         return response
+
+
+# This WeeklyExcelReport class is generating the Report data from Week-wise-report(media folder)- Now we are commenting it for future use
+# class WeeklyExcelReport(APIView):
+#     def get(self, request):
+#         # Query data from Patientopdform model
+#         data = Patientopdform.objects.all()
+#
+#         # Mapping of attribute names to display names
+#         headers_mapping = {
+#             'srNo': 'Sr.No.',
+#             'patientName': 'Patient Name',
+#             'date': 'Date',
+#             'villageName': 'Village Name',
+#             'camp_name': 'Camp Name',
+#             'category': 'N/F/SC/R',
+#             'gender': 'Gender',
+#              'age': 'Age',
+#              'day': 'Day',
+#              'month': 'Month',
+#              'ageGroup': 'Age Group',
+#              'week': 'Week',
+#              'mobileNo': 'Mobile No.',
+#              'signSymptoms': 'Sign and Symptoms',
+#              'physicalExamination': 'Physical Examination and Finding',
+#              'investigation': 'Investigation',
+#              'diagnosis': 'Diagnosis',
+#              'prescribedMedicine1': 'Prescribed medicine 1',
+#              'prescribedMedicine2': 'Prescribed medicine 2',
+#              'dosage': 'Dosage',
+#              'treatmentRemark': 'Treatment Remark',
+#         }
+#
+#         # Create a week-wise dictionary to hold dataframes
+#         weeks_dataframes = {}
+#
+#         # Separate data for each week
+#         weeks = data.values_list('week', flat=True).distinct()
+#
+#         # Create dataframe for each week
+#         for week in weeks:
+#             # Filter data by week
+#             week_data = data.filter(week=week)
+#
+#             # Create dataframe for the current week
+#             df = pd.DataFrame(list(week_data.values(*headers_mapping.keys())))
+#             # Ensure column names are consistent
+#             df.columns = [headers_mapping.get(col, col) for col in df.columns]
+#             # Store dataframe in dictionary
+#             weeks_dataframes[week] = df
+#
+#         # Initialize an Excel writer for output
+#         output = io.BytesIO()
+#         with pd.ExcelWriter(output, engine='openpyxl') as writer:
+#             # Process each week's dataframe
+#             for week, df in weeks_dataframes.items():
+#                 if df.empty:
+#                     continue
+#
+#                 # Create a 'Count' column with value 1
+#                 df['Count'] = 1
+#                 # Ensure that 'Day' is in the DataFrame
+#                 if 'Day' not in df.columns:
+#                     print(f"Day column not found in Week {week}")
+#                     continue
+#                 # Create pivot table for the current week
+#                 try:
+#                     pivot_table = df.pivot_table(
+#                         index='diagnosis',
+#                         columns=['day', 'villageName', 'gender'],
+#                         values='Count',
+#                         aggfunc='sum',
+#                         fill_value=0
+#                     )
+#                 except KeyError as e:
+#                     # Skip this sheet if required columns are missing
+#                     print(f"Skipping week {week} due to missing column: {e}")
+#                     continue
+#
+#                 # Reset the index to make 'Diagnosis' the first column
+#                 pivot_table.reset_index(inplace=True)
+#
+#                 # Write the pivot table to a new sheet in the output Excel file
+#                 pivot_table.to_excel(writer, sheet_name=f'Weekly Report - Week {week}', index=True)
+#
+#         # Create HttpResponse object with Excel content type
+#         response = HttpResponse(
+#             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+#         )
+#         response['Content-Disposition'] = f'attachment; filename="Weekly_Reports_{datetime.today().strftime("%Y-%m-%d")}.xlsx"'
+#
+#         # Save the output to the HttpResponse
+#         output.seek(0)
+#         response.write(output.getvalue())
+#
+#         return response

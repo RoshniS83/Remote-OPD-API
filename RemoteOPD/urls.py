@@ -44,6 +44,7 @@ urlpatterns = [
           path('api/eyecamp/', include('eyecamp.urls')),
           path('api/client/', include('Client.urls')),
           path('api/adcamp/', include('adcamp.urls')),
+          path('api/megacamp/', include('megacamp.urls')),
           path('', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
 ]
 

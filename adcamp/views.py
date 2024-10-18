@@ -151,6 +151,7 @@ class ADCampExcelSheet(APIView):
             'month': 'Month',
             'name' : 'Name',
             'age' : 'Age',
+            'contact':'Contact',
             'standard': 'Standard',
             'weight': 'Weight',
             'height': 'Height',
@@ -165,7 +166,7 @@ class ADCampExcelSheet(APIView):
         ws=wb.active
         ws.merge_cells('A1:P1')
         ws['A1'] = 'Arogaya Dhansampadha Camp'
-        ws['A1'].font = Font(bold= True, size=14)
+        ws['A1'].font = Font(bold= True, size=16)
         ws['A1'].alignment = Alignment(horizontal='center')
 
         headers= list(headers_mapping.values())
@@ -183,7 +184,7 @@ class ADCampExcelSheet(APIView):
                              top=Side(style='thin'),
                              bottom=Side(style='thin'))
 
-        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=12):
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=16):
             for cell in row:
                 cell.border = thin_border
 
@@ -194,7 +195,7 @@ class ADCampExcelSheet(APIView):
         return response
 
 
-class ADCampMonthlyReport(APIView):
+class ADCampHBMonthlyReport(APIView):
     def get(self, request):
         # Query data from the ADCamp model
         # data = ADCamp.objects.values('subvillage', 'gender', 'ADReadings').annotate(count=Count('SrNo'))
@@ -208,11 +209,10 @@ class ADCampMonthlyReport(APIView):
         if not year or not month or not village or not client_name:
             return Response({"error": "Year, Month, Village and Client Name are required"}, status=400)
             # Filter data from ADCamp model based on the provided parameters
-        data = ADCamp.objects.filter(client_name=client_name, village=village, year=year, month=month).values('subvillage', 'gender',
-                                                                                     'HBReadings').annotate(count=Count('SrNo'))
+        data = ADCamp.objects.filter(client_name=client_name, village=village, year=year, month=month).values('villageName', 'HBReadings').annotate(count=Count('SrNo'))
 
         # Convert to pandas dataframe
-        df = pd.DataFrame(list(data))
+        df = pd.DataFrame(data)
 
         # Check if the DataFrame is empty
         if df.empty:
@@ -220,7 +220,7 @@ class ADCampMonthlyReport(APIView):
                             status=400)
             # Create a pivot table with 'subvillage' and 'gender' as index and 'ADReadings' as columns
         pivot_table = pd.pivot_table(df,
-                                     index=['subvillage', 'gender'],
+                                     index=['villageName'],
                                      columns='HBReadings',
                                      values='count',
                                      aggfunc='sum',
@@ -230,76 +230,57 @@ class ADCampMonthlyReport(APIView):
         pivot_table['Total'] = pivot_table.sum(axis=1)
 
         # Add Grand Total for each village by summing across genders
-        grand_total = pivot_table.groupby('subvillage')['Total'].sum()
-        pivot_table['Grand Total Village'] = pivot_table.index.get_level_values('subvillage').map(grand_total)
+        # grand_total = pivot_table.groupby('villageName')['Total'].sum()
+        # pivot_table['Grand Total Village'] = pivot_table.index.get_level_values('villageName').map(grand_total)
 
         # Reorder the columns to match the required order
-        required_columns = ['Mild Anemia', 'Moderate Anemia', 'Severe Anemia', 'Healthy', 'Total', 'Grand Total']
+        required_columns = ['Mild Anemia', 'Moderate Anemia', 'Severe Anemia', 'Healthy', 'Total']
         for col in required_columns:
             if col not in pivot_table.columns:
                 pivot_table[col] = 0  # Add missing columns if necessary
 
         pivot_table = pivot_table[required_columns]
-
+        #compute the total row across all villages
+        total_row= pivot_table.sum(axis=0)
+        total_row.name = 'Total'
+        # Append the Total row to the pivot table using pd.concat()
+        pivot_table = pd.concat([pivot_table, pd.DataFrame(total_row).T])
         # Convert pivot table to Excel
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = 'AD Camp Report'
 
         # Title
-        ws.merge_cells('A1:I1')
-        ws['A1'] = 'Village Wise Aarogya Dhansampada Camp Report'
+        ws.merge_cells('A1:G1')
+        ws['A1'] = f'Village Wise Aarogya Dhansampada Camp HB Screening Report {month}-{year}'
         ws['A1'].font = Font(bold=True, size=14)
         ws['A1'].alignment = Alignment(horizontal='center')
 
         # Headers
-        headers = ['Sr. No', 'Village Names', 'Gender'] + required_columns
+        headers = ['Sr. No', 'Village Name'] + required_columns
         ws.append(headers)
 
         # Bold the header row
         for cell in ws[2]:
             cell.font = Font(bold=True)
 
-            # Add data to the Excel sheet with merged village names
+        # Add data to the Excel sheet
         sr_no = 1
         current_row = 3
-        last_column_idx=9
-        for village, group_data in pivot_table.groupby(level=0):
-            # Number of rows to merge (male and female rows)
-            num_rows = len(group_data)
+        for village, row_data in pivot_table.iterrows():
+            if village != 'Total':
+                ws.cell(row=current_row, column=1).value = sr_no  # Sr. No
+                sr_no+=1
+            else:
+                ws.cell(row=current_row, column=1).value = ''
+            ws.cell(row=current_row, column=2).value = village  # Village Name
 
-            # Loop through each gender row in group_data (Male/Female)
-            for idx, ((_, gender), row_data) in enumerate(group_data.iterrows()):
-                ws.cell(row=current_row, column=1).value = sr_no  # Sr. No (we will merge this later)
-                ws.cell(row=current_row, column=2).value = village  # Village Name (we will merge this later)
-                ws.cell(row=current_row, column=3).value = gender  # Gender
+            # Fill the rest of the values (Mild, Moderate, etc.)
+            for col_idx, value in enumerate(row_data.tolist(), start=3):
+                ws.cell(row=current_row, column=col_idx).value = value  # Assign values
 
-                # Fill the rest of the values (Mild, Moderate, etc.)
-                for col_idx, value in enumerate(row_data.tolist(), start=4):
-                    ws.cell(row=current_row, column=col_idx).value = value  # Assign values for Mild, Moderate, etc.
+            current_row += 1
 
-                current_row += 1
-
-            # Calculate Grand Total after looping over genders
-            grand_total_value = group_data['Total'].sum()
-            for r in range(current_row - num_rows, current_row):
-                ws.cell(row=r, column=last_column_idx).value = grand_total_value  # Assign the Grand Total for each row
-
-            # Now merge the Sr. No, Village, and Grand Total cells after writing the values
-            ws.merge_cells(start_row=current_row - num_rows, start_column=1, end_row=current_row - 1,
-                           end_column=1)  # Merge Sr. No
-            ws.merge_cells(start_row=current_row - num_rows, start_column=2, end_row=current_row - 1,
-                           end_column=2)  # Merge Village Name
-            ws.merge_cells(start_row=current_row - num_rows, start_column=last_column_idx, end_row=current_row - 1,
-                           end_column=last_column_idx)  # Merge Grand Total
-
-            # Align merged cells
-            ws.cell(row=current_row - num_rows, column=1).alignment = Alignment(vertical='center')
-            ws.cell(row=current_row - num_rows, column=2).alignment = Alignment(vertical='center')
-            ws.cell(row=current_row - num_rows, column=last_column_idx).alignment = Alignment(vertical='center')
-
-            # Increment Sr. No for next village
-            sr_no += 1
 
             # Apply thin border to all cells
         thin_border = Border(left=Side(style='thin'),
@@ -307,13 +288,118 @@ class ADCampMonthlyReport(APIView):
                                  top=Side(style='thin'),
                                  bottom=Side(style='thin'))
 
-        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=9):
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=7):
             for cell in row:
                 cell.border = thin_border
 
             # Prepare the response to download the file
         current_date = datetime.date.today().strftime('%Y-%m-%d')
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition'] = f'attachment; filename="AD_CAMP_Report_{current_date}.xlsx"'
+        response['Content-Disposition'] = f'attachment; filename="AD_CAMP_HB_Report_{current_date}.xlsx"'
+        wb.save(response)
+        return response
+
+
+class ADCampBMIMonthlyReport(APIView):
+    def get(self, request):
+        # Query data from the ADCamp model
+        # data = ADCamp.objects.values('subvillage', 'gender', 'ADReadings').annotate(count=Count('SrNo'))
+        # Get query parameters for filtering
+        year = request.query_params.get('year')
+        month = request.query_params.get('month')
+        village = request.query_params.get('village')
+        client_name = request.query_params.get('client_name')
+
+        # Validate required parameters
+        if not year or not month or not village or not client_name:
+            return Response({"error": "Year, Month, Village and Client Name are required"}, status=400)
+            # Filter data from ADCamp model based on the provided parameters
+        data = ADCamp.objects.filter(client_name=client_name, village=village, year=year, month=month).values('villageName', 'BMIReadings').annotate(count=Count('SrNo'))
+
+        # Convert to pandas dataframe
+        df = pd.DataFrame(data)
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return Response({"error": f"No data available for year: {year}, Month: {month}, Village: {village}"},
+                            status=400)
+            # Create a pivot table with 'subvillage' and 'gender' as index and 'ADReadings' as columns
+        pivot_table = pd.pivot_table(df,
+                                     index=['villageName'],
+                                     columns='BMIReadings',
+                                     values='count',
+                                     aggfunc='sum',
+                                     fill_value=0)
+
+        # Add Total column for each row
+        pivot_table['Total'] = pivot_table.sum(axis=1)
+
+        # Add Grand Total for each village by summing across genders
+        # grand_total = pivot_table.groupby('villageName')['Total'].sum()
+        # pivot_table['Grand Total Village'] = pivot_table.index.get_level_values('villageName').map(grand_total)
+
+        # Reorder the columns to match the required order
+        required_columns = ['Underweight', 'Healthy Weight', 'Overweight', 'Obese', 'Severely Obese','Morbidly Obese','Total']
+        for col in required_columns:
+            if col not in pivot_table.columns:
+                pivot_table[col] = 0  # Add missing columns if necessary
+
+        pivot_table = pivot_table[required_columns]
+        #compute the total row across all villages
+        total_row= pivot_table.sum(axis=0)
+        total_row.name = 'Total'
+        # Append the Total row to the pivot table using pd.concat()
+        pivot_table = pd.concat([pivot_table, pd.DataFrame(total_row).T])
+        # Convert pivot table to Excel
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'AD Camp Report'
+
+        # Title
+        ws.merge_cells('A1:I1')
+        ws['A1'] = 'Village Wise Aarogya Dhansampada Camp BMI Report {month}-{year}'
+        ws['A1'].font = Font(bold=True, size=14)
+        ws['A1'].alignment = Alignment(horizontal='center')
+
+        # Headers
+        headers = ['Sr. No', 'Village Name'] + required_columns
+        ws.append(headers)
+
+        # Bold the header row
+        for cell in ws[2]:
+            cell.font = Font(bold=True)
+
+        # Add data to the Excel sheet
+        sr_no = 1
+        current_row = 3
+        for village, row_data in pivot_table.iterrows():
+            if village != 'Total':
+                ws.cell(row=current_row, column=1).value = sr_no  # Sr. No
+                sr_no+=1
+            else:
+                ws.cell(row=current_row, column=1).value = ''
+            ws.cell(row=current_row, column=2).value = village  # Village Name
+
+            # Fill the rest of the values (Mild, Moderate, etc.)
+            for col_idx, value in enumerate(row_data.tolist(), start=3):
+                ws.cell(row=current_row, column=col_idx).value = value  # Assign values
+
+            current_row += 1
+
+
+            # Apply thin border to all cells
+        thin_border = Border(left=Side(style='thin'),
+                                 right=Side(style='thin'),
+                                 top=Side(style='thin'),
+                                 bottom=Side(style='thin'))
+
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=7):
+            for cell in row:
+                cell.border = thin_border
+
+            # Prepare the response to download the file
+        current_date = datetime.date.today().strftime('%Y-%m-%d')
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="AD_CAMP_BMI_Report_{current_date}.xlsx"'
         wb.save(response)
         return response

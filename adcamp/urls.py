@@ -1,5 +1,5 @@
 from django.urls import path
-from adcamp.views import ADCampAPI, ADCampExcelSheet, ADCampMonthlyReport
+from adcamp.views import ADCampAPI, ADCampExcelSheet, ADCampHBMonthlyReport, ADCampBMIMonthlyReport
 
 urlpatterns= [
     path("addadcamp/", ADCampAPI.as_view({'post':'create'})),
@@ -9,5 +9,6 @@ urlpatterns= [
     path("adcamp/<int:pk>/partial-update/", ADCampAPI.as_view({'patch':'partial_update'})),
     path("adcamp/<int:pk>/delete/", ADCampAPI.as_view({'delete': 'destroy'})),
     path('adcampExcelsheet/', ADCampExcelSheet.as_view()),
-    path('adcampReport/',ADCampMonthlyReport.as_view())
+    path('adcampHBReport/',ADCampHBMonthlyReport.as_view()),
+    path('adcampBMIReport/', ADCampBMIMonthlyReport.as_view())
 ]

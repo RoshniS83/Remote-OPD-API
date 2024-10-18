@@ -49,6 +49,7 @@ INSTALLED_APPS = [
           'eyecamp',
           'Client',
           'adcamp',
+          'megacamp',
 
 ]
 
